@@ -23,12 +23,15 @@ export default function SignUp() {
     }
 
     setLoading(true)
-    const { data, error } = await supabase.auth.signUp({
+
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName }
-      }
+        data: {
+          full_name: fullName,
+        },
+      },
     })
 
     if (error) {
@@ -37,8 +40,7 @@ export default function SignUp() {
       return
     }
 
-    // If sign up requires email confirmation, user might not be active yet.
-    // We'll redirect anyway to dashboard; auth state will resolve.
+    setLoading(false)
     navigate('/dashboard', { replace: true })
   }
 
@@ -53,15 +55,25 @@ export default function SignUp() {
             KD
           </div>
         </div>
-        <h1 className="text-center text-2xl font-extrabold text-gray-900">Katyar Detection</h1>
+
+        <h1 className="text-center text-2xl font-extrabold text-gray-900">
+          Katyar Detection
+        </h1>
 
         <div className="mt-6 p-6 bg-white rounded-xl shadow-sm border">
           <h2 className="text-xl font-bold mb-5">Sign Up</h2>
-          {error ? <div className="mb-4 text-red-600 text-sm">{error}</div> : null}
+
+          {error && (
+            <div className="mb-4 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name
+              </label>
               <input
                 className="w-full p-2.5 border rounded-lg"
                 value={fullName}
@@ -71,7 +83,9 @@ export default function SignUp() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
+              </label>
               <input
                 type="email"
                 className="w-full p-2.5 border rounded-lg"
@@ -82,7 +96,9 @@ export default function SignUp() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
               <input
                 type="password"
                 className="w-full p-2.5 border rounded-lg"
@@ -93,7 +109,9 @@ export default function SignUp() {
             </div>
 
             <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Confirm Password
+              </label>
               <input
                 type="password"
                 className="w-full p-2.5 border rounded-lg"
@@ -114,7 +132,11 @@ export default function SignUp() {
 
           <div className="mt-4 text-sm text-gray-600 text-center">
             Already have an account?{' '}
-            <Link to="/signin" className="font-semibold" style={{ color: '#1E40AF' }}>
+            <Link
+              to="/signin"
+              className="font-semibold"
+              style={{ color: '#1E40AF' }}
+            >
               Sign In
             </Link>
           </div>
@@ -122,5 +144,4 @@ export default function SignUp() {
       </div>
     </div>
   )
-}
-
+                  }
