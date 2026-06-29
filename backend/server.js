@@ -44,6 +44,15 @@ const supabase = createClient(
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
+function cleanJSON(text) {
+  // Remove markdown code blocks
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```json\s*/i, '');
+  cleaned = cleaned.replace(/^```\s*/i, '');
+  cleaned = cleaned.replace(/```\s*$/i, '');
+  return cleaned.trim();
+}
+
 function extractTextFromFile(filePath, originalName) {
   const ext = path.extname(originalName).toLowerCase()
 
@@ -84,9 +93,10 @@ async function groqAIAnalysis(text) {
     temperature: 0
   })
 
-  const content = resp.choices?.[0]?.message?.content || '{}'
-  const json = JSON.parse(content)
-  return json
+  const rawText = resp.choices?.[0]?.message?.content || '{}'
+  const cleanedText = cleanJSON(rawText)
+  const result = JSON.parse(cleanedText)
+  return result
 }
 
 async function copyleaksPlagiarismCheck(text) {

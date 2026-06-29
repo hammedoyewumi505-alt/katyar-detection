@@ -1,79 +1,60 @@
-import { useEffect, useMemo, useState } from 'react'
-import { convertPkrToUsd, fetchPkrToUsdRate, formatUsd } from '../lib/fx'
-
 export default function PricingCard({ plan, mostPopular, onBuyNow }) {
-  const pricePkr = plan.price_pkr ?? plan.price ?? 0
-  const [usdRate, setUsdRate] = useState(null)
-  const [loadingRate, setLoadingRate] = useState(false)
-
-  useEffect(() => {
-    let mounted = true
-    async function loadRate() {
-      setLoadingRate(true)
-      try {
-        const rate = await fetchPkrToUsdRate()
-        if (mounted) setUsdRate(rate)
-      } catch {
-        // ignore; we'll show PKR only
-        if (mounted) setUsdRate(null)
-      } finally {
-        if (mounted) setLoadingRate(false)
-      }
-    }
-
-    loadRate()
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  const usdAmount = useMemo(() => {
-    if (!usdRate) return null
-    return convertPkrToUsd(pricePkr, usdRate)
-  }, [pricePkr, usdRate])
+  const pricePkr = plan.price ?? 0
 
   return (
-    <div className="relative border border-blue-100 rounded-2xl bg-white p-6 shadow-sm flex flex-col overflow-hidden">
-      {mostPopular ? (
-        <div className="absolute top-4 right-4 inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-blue-600 text-white">
-          Most Popular
+    <div
+      className={
+        mostPopular
+          ? 'relative rounded-2xl p-7 bg-[#1e40af] text-white shadow-[0_20px_60px_rgba(30,64,175,0.4)]'
+          : 'relative rounded-2xl p-7 bg-white text-gray-900 border border-blue-100 shadow-sm'
+      }
+      style={{ transform: mostPopular ? 'scale(1.05)' : 'scale(1)' }}
+    >
+      {mostPopular && (
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2"
+          style={{ background: '#fbbf24', color: '#1f2937', padding: '4px 16px', borderRadius: '9999px', fontSize: 12, fontWeight: 700 }}
+        >
+          MOST POPULAR
         </div>
-      ) : null}
+      )}
 
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-lg font-extrabold text-gray-900">{plan.id}</div>
-          <div className="mt-1 text-sm text-blue-700 font-semibold">Pay once, use slots anytime</div>
-        </div>
+      <div className="text-[20px] font-extrabold" style={{ marginTop: mostPopular ? 18 : 0 }}>
+        {plan.name}
+      </div>
+
+      <div className="mt-2 text-gray-500" style={{ color: mostPopular ? '#bfdbfe' : '#6b7280', fontSize: 14, fontWeight: 600 }}>
+        {plan.subtitle}
       </div>
 
       <div className="mt-5">
-        <div className="text-4xl font-extrabold text-gray-900">₨{pricePkr}</div>
-        <div className="mt-1 text-sm text-gray-600">
-          {plan.slots} slots{usdAmount ? ` • ≈ ${formatUsd(usdAmount)}` : loadingRate ? ' • fetching USD…' : ''}
+        <div className="text-[48px] font-extrabold" style={{ color: mostPopular ? '#ffffff' : '#111827' }}>
+          ₨{pricePkr}
+        </div>
+        <div className="mt-1 text-sm" style={{ color: mostPopular ? '#bfdbfe' : '#6b7280', fontSize: 14 }}>
+          {plan.slots} slots
         </div>
       </div>
 
-      <ul className="mt-6 space-y-2">
-          {(plan.features || []).map((f, idx) => (
-            <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-              <span className="mt-1 w-2 h-2 rounded-full bg-blue-600" />
-              <span>{f}</span>
-            </li>
-          ))}
+      <ul className="mt-6" style={{ textAlign: 'left' }}>
+        {(plan.features || []).map((f) => (
+          <li key={f} className="flex items-center gap-3 mb-3" style={{ fontSize: 14 }}>
+            <span style={{ color: '#22c55e', fontWeight: 700, lineHeight: '1' }}>✓</span>
+            <span style={{ color: mostPopular ? '#ffffff' : '#374151' }}>{f}</span>
+          </li>
+        ))}
       </ul>
 
-      <div className="mt-7">
-        <button
-          onClick={onBuyNow}
-          className="w-full bg-blue-700 text-white py-2.5 rounded-xl font-semibold hover:bg-blue-800 transition"
-        >
-          Buy Now
-        </button>
-      </div>
+      <button
+        onClick={onBuyNow}
+        className="w-full mt-2 bg-[#1d4ed8] text-white py-4 rounded-xl font-semibold hover:bg-[#1e40af] transition"
+      >
+        Buy Now
+      </button>
     </div>
   )
 }
+
 
 
 

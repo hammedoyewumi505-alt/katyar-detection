@@ -16,10 +16,11 @@ export default function Pricing() {
     loadPlans();
   }, []);
 
-  const features = [
-    'AI Writing Detection',
-    'Plagiarism Check',
-    '2 PDF Reports per scan',
+  const featuresForPlan = (plan) => [
+    `${plan.slots} document scans`,
+    'AI Writing Detection report',
+    'Plagiarism Check report',
+    '2 PDF reports per scan',
     'Secure file processing',
     'Auto file deletion after 1 hour'
   ];
@@ -76,7 +77,7 @@ export default function Pricing() {
                   {plan.slots} document slots
                 </div>
                 <div style={{marginBottom:'28px',textAlign:'left'}}>
-                  {features.map(f => (
+                  {featuresForPlan(plan).map(f => (
                     <div key={f} style={{
                       display:'flex',alignItems:'center',gap:'8px',
                       marginBottom:'10px',fontSize:'14px'
@@ -85,13 +86,6 @@ export default function Pricing() {
                       {f}
                     </div>
                   ))}
-                  <div style={{
-                    display:'flex',alignItems:'center',gap:'8px',
-                    marginBottom:'10px',fontSize:'14px'
-                  }}>
-                    <span style={{color: index === 2 ? '#86efac' : '#22c55e',fontWeight:'700'}}>✓</span>
-                    {plan.slots} document slots
-                  </div>
                 </div>
                 <button
                   onClick={() => navigate(`/payment/${plan.id}`)}

@@ -25,7 +25,30 @@ export default function Dashboard() {
       const u = authData?.user || null
       setUser(u)
 
+      const DEMO_EMAIL = 'demo@katyardetection.com'
+      if (u?.email === DEMO_EMAIL) {
+        const today = new Date().toISOString().split('T')[0]
+
+        const { data: planData } = await supabase
+          .from('user_plans')
+          .select('*')
+          .eq('user_id', u.id)
+          .eq('status', 'active')
+          .single()
+
+        if (planData && planData.last_refill_date !== today) {
+          await supabase
+            .from('user_plans')
+            .update({
+              slots_remaining: 100,
+              last_refill_date: today
+            })
+            .eq('id', planData.id)
+        }
+      }
+
       if (!u) {
+
         setUserPlanRow(null)
         setScans([])
         setLoading(false)

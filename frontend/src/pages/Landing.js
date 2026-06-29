@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Hero from '../components/Hero'
 import HowItWorks from '../components/HowItWorks'
@@ -7,7 +8,6 @@ import PricingCard from '../components/PricingCard'
 import Testimonials from '../components/Testimonials'
 import Faq from '../components/Faq'
 import Footer from '../components/Footer'
-import { supabase } from '../lib/supabase'
 
 const STATIC_PLANS = [
   {
@@ -92,46 +92,8 @@ function LandingStats() {
 }
 
 export default function Landing() {
-  const [plans, setPlans] = useState(STATIC_PLANS)
-  const [loadingPlans, setLoadingPlans] = useState(true)
-
-  useEffect(() => {
-    let alive = true
-    const fetchPlans = async () => {
-      // Optional: if Supabase has plans table configured, use it.
-      try {
-        const { data, error } = await supabase
-          .from('plans')
-          .select('id,name,price,slots,features,most_popular')
-          .order('price', { ascending: true })
-
-        if (error) throw error
-
-        if (alive && Array.isArray(data) && data.length) {
-          const normalized = data.map((p) => ({
-            id: p.id,
-            name: p.name,
-            // force pricing/slot limits from frontend defaults
-            price: STATIC_PLANS.find((sp) => sp.id === p.id)?.price ?? p.price,
-            slots: STATIC_PLANS.find((sp) => sp.id === p.id)?.slots ?? (p.slots ?? p.slots_total ?? p.number_of_slots ?? p.slots_remaining ?? 0),
-            features: Array.isArray(p.features)
-              ? p.features
-              : (p.features ? String(p.features).split(',').map((x) => x.trim()).filter(Boolean) : [])
-          }))
-          setPlans(normalized.length ? normalized : STATIC_PLANS)
-        }
-      } catch {
-        if (alive) setPlans(STATIC_PLANS)
-      } finally {
-        if (alive) setLoadingPlans(false)
-      }
-    }
-
-    fetchPlans()
-    return () => {
-      alive = false
-    }
-  }, [])
+  const navigate = useNavigate()
+  const plans = useMemo(() => STATIC_PLANS, [])
 
   return (
     <div className="min-h-screen">
@@ -150,14 +112,12 @@ export default function Landing() {
             </div>
 
             <div className="mt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-              {(loadingPlans ? STATIC_PLANS : plans).map((plan) => (
+              {plans.map((plan) => (
                 <PricingCard
                   key={plan.id}
-                  plan={plan}
-                  mostPopular={plan.id === 'pro' || plan.most_popular}
-                  onBuyNow={() => {
-                    window.location.href = `/payment/${plan.id}`
-                  }}
+                  plan={{ ...plan, subtitle: 'Pay once, use slots anytime' }}
+                  mostPopular={plan.id === 'pro'}
+                  onBuyNow={() => navigate('/signup')}
                 />
               ))}
             </div>
@@ -171,4 +131,5 @@ export default function Landing() {
     </div>
   )
 }
+
 

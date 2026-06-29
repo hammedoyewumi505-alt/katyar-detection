@@ -36,7 +36,19 @@ export default function Payment() {
 
   const pricePk = useMemo(() => {
     if (!plan) return ''
-    return `₨${plan.price ?? ''}`
+
+    // Support different possible price fields from DB
+    const rawPrice =
+      plan.price ??
+      plan.price_pkr ??
+      plan.pricePKR ??
+      plan.amount ??
+      ''
+
+    const priceNum = typeof rawPrice === 'number' ? rawPrice : Number(rawPrice)
+    if (!priceNum && priceNum !== 0) return '₨'
+
+    return `₨${priceNum.toLocaleString()}`
   }, [plan])
 
   const handleSubmit = async (e) => {
@@ -86,9 +98,11 @@ export default function Payment() {
         .insert({
           user_id: user.id,
           plan_id: planId,
+          slots_total: plan?.slots,
+          slots_remaining: 0,
           status: 'pending',
           transaction_id: transactionId.trim(),
-          screenshot_path: screenshotPublicUrl,
+          payment_screenshot_url: screenshotPublicUrl,
           created_at: new Date().toISOString()
         })
 
