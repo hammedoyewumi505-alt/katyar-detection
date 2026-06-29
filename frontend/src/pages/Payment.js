@@ -20,7 +20,7 @@ export default function Payment() {
       const { data, error } = await supabase
         .from('plans')
         .select('*')
-        .eq('name', decodeURIComponent(planId))
+        .eq('id', decodeURIComponent(planId))
         .single()
 
       if (error) {
