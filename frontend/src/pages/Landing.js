@@ -17,9 +17,11 @@ const STATIC_PLANS = [
     slots: 10,
     features: [
       '10 document scans',
-      'AI detection report',
-      'Plagiarism report',
-      'PDF downloads'
+      'AI Writing Detection report',
+      'Plagiarism Check report',
+      '2 PDF reports per scan',
+      'Secure file processing',
+      'Auto file deletion after 1 hour'
     ]
   },
   {
@@ -27,12 +29,13 @@ const STATIC_PLANS = [
     name: 'Basic',
     price: 2300,
     slots: 25,
-
     features: [
       '25 document scans',
-      'AI + plagiarism reports',
-      'Sentence-level evidence',
-      'PDF downloads'
+      'AI Writing Detection report',
+      'Plagiarism Check report',
+      '2 PDF reports per scan',
+      'Secure file processing',
+      'Auto file deletion after 1 hour'
     ]
   },
   {
@@ -40,12 +43,13 @@ const STATIC_PLANS = [
     name: 'Pro',
     price: 5500,
     slots: 60,
-
     features: [
       '60 document scans',
-      'Detailed AI breakdown',
-      'Matched sources overview',
-      'PDF downloads'
+      'AI Writing Detection report',
+      'Plagiarism Check report',
+      '2 PDF reports per scan',
+      'Secure file processing',
+      'Auto file deletion after 1 hour'
     ]
   },
   {
@@ -53,12 +57,13 @@ const STATIC_PLANS = [
     name: 'Enterprise',
     price: 9000,
     slots: 100,
-
     features: [
       '100 document scans',
-      'Priority processing',
-      'Advanced integrity flags',
-      'PDF downloads'
+      'AI Writing Detection report',
+      'Plagiarism Check report',
+      '2 PDF reports per scan',
+      'Secure file processing',
+      'Auto file deletion after 1 hour'
     ]
   }
 ]
@@ -106,9 +111,12 @@ export default function Landing() {
           const normalized = data.map((p) => ({
             id: p.id,
             name: p.name,
-            price: p.price,
-            slots: p.slots ?? p.slots_total ?? p.number_of_slots ?? p.slots_remaining ?? 0,
-            features: Array.isArray(p.features) ? p.features : (p.features ? String(p.features).split(',').map((x) => x.trim()).filter(Boolean) : [])
+            // force pricing/slot limits from frontend defaults
+            price: STATIC_PLANS.find((sp) => sp.id === p.id)?.price ?? p.price,
+            slots: STATIC_PLANS.find((sp) => sp.id === p.id)?.slots ?? (p.slots ?? p.slots_total ?? p.number_of_slots ?? p.slots_remaining ?? 0),
+            features: Array.isArray(p.features)
+              ? p.features
+              : (p.features ? String(p.features).split(',').map((x) => x.trim()).filter(Boolean) : [])
           }))
           setPlans(normalized.length ? normalized : STATIC_PLANS)
         }
