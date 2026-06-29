@@ -42,7 +42,7 @@ export default function PricingCard({ plan, mostPopular, onBuyNow }) {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-lg font-extrabold text-gray-900">{plan.name}</div>
+          <div className="text-lg font-extrabold text-gray-900">{plan.id}</div>
           <div className="mt-1 text-sm text-blue-700 font-semibold">Pay once, use slots anytime</div>
         </div>
       </div>
