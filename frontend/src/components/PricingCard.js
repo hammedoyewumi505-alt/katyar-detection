@@ -1,5 +1,36 @@
+import { useEffect, useMemo, useState } from 'react'
+import { convertPkrToUsd, fetchPkrToUsdRate, formatUsd } from '../lib/fx'
+
 export default function PricingCard({ plan, mostPopular, onBuyNow }) {
-  const price = plan.price_pkr ?? plan.price ?? 0
+  const pricePkr = plan.price_pkr ?? plan.price ?? 0
+  const [usdRate, setUsdRate] = useState(null)
+  const [loadingRate, setLoadingRate] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    async function loadRate() {
+      setLoadingRate(true)
+      try {
+        const rate = await fetchPkrToUsdRate()
+        if (mounted) setUsdRate(rate)
+      } catch {
+        // ignore; we'll show PKR only
+        if (mounted) setUsdRate(null)
+      } finally {
+        if (mounted) setLoadingRate(false)
+      }
+    }
+
+    loadRate()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const usdAmount = useMemo(() => {
+    if (!usdRate) return null
+    return convertPkrToUsd(pricePkr, usdRate)
+  }, [pricePkr, usdRate])
 
   return (
     <div className="relative border border-blue-100 rounded-2xl bg-white p-6 shadow-sm flex flex-col overflow-hidden">
@@ -17,17 +48,19 @@ export default function PricingCard({ plan, mostPopular, onBuyNow }) {
       </div>
 
       <div className="mt-5">
-        <div className="text-4xl font-extrabold text-gray-900">₨{price}</div>
-        <div className="mt-1 text-sm text-gray-600">{plan.slots} slots</div>
+        <div className="text-4xl font-extrabold text-gray-900">₨{pricePkr}</div>
+        <div className="mt-1 text-sm text-gray-600">
+          {plan.slots} slots{usdAmount ? ` • ≈ ${formatUsd(usdAmount)}` : loadingRate ? ' • fetching USD…' : ''}
+        </div>
       </div>
 
       <ul className="mt-6 space-y-2">
-        {plan.features.map((f, idx) => (
-          <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-            <span className="mt-1 w-2 h-2 rounded-full bg-blue-600" />
-            <span>{f}</span>
-          </li>
-        ))}
+          {(plan.features || []).map((f, idx) => (
+            <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+              <span className="mt-1 w-2 h-2 rounded-full bg-blue-600" />
+              <span>{f}</span>
+            </li>
+          ))}
       </ul>
 
       <div className="mt-7">
@@ -41,5 +74,6 @@ export default function PricingCard({ plan, mostPopular, onBuyNow }) {
     </div>
   )
 }
+
 
 

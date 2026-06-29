@@ -11,8 +11,10 @@ export default function Admin() {
       const { data } = await supabase.auth.getUser();
       const email = data?.user?.email;
       setUserEmail(email || 'not logged in');
-      if (email === 'developerhallins@gmail.com') {
-        setIsAdmin(true);
+      // Admin emails (comma-separated)
+      const ADMIN_EMAILS = ['developerhallins@gmail.com']
+      if (ADMIN_EMAILS.includes(email)) {
+        setIsAdmin(true)
       }
       setLoading(false);
     }

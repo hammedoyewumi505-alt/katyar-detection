@@ -13,7 +13,7 @@ const STATIC_PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 999,
+    price: 900,
     slots: 10,
     features: [
       '10 document scans',
@@ -25,8 +25,9 @@ const STATIC_PLANS = [
   {
     id: 'basic',
     name: 'Basic',
-    price: 1999,
+    price: 2300,
     slots: 25,
+
     features: [
       '25 document scans',
       'AI + plagiarism reports',
@@ -37,8 +38,9 @@ const STATIC_PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 3999,
+    price: 5500,
     slots: 60,
+
     features: [
       '60 document scans',
       'Detailed AI breakdown',
@@ -49,8 +51,9 @@ const STATIC_PLANS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: 5999,
+    price: 9000,
     slots: 100,
+
     features: [
       '100 document scans',
       'Priority processing',

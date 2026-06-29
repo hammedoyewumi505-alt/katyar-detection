@@ -5,6 +5,8 @@ import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 import Pricing from './pages/Pricing'
 import Payment from './pages/Payment'
+import Admin from './pages/Admin'
+
 
 export default function App() {
   return (
@@ -16,6 +18,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/payment/:planId" element={<Payment />} />
+        <Route path="/admin" element={<Admin />} />
       </Routes>
     </BrowserRouter>
   )
