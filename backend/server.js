@@ -293,10 +293,18 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
   }
 })
 
-app.post('/api/generate-ai-report', async (req, res) => {
+app.get('/api/generate-ai-report', async (req, res) => {
   try {
-    const scan = req.body.scan
-    if (!scan) return res.status(400).json({ error: 'scan data required' })
+    const scanId = req.query.scanId
+    if (!scanId) return res.status(400).json({ error: 'scanId is required' })
+
+    const { data: scan, error } = await supabase
+      .from('scans')
+      .select('*')
+      .eq('id', scanId)
+      .single()
+
+    if (error || !scan) return res.status(404).json({ error: 'Scan not found' })
 
     const doc = new jsPDF()
 
@@ -345,10 +353,18 @@ app.post('/api/generate-ai-report', async (req, res) => {
   }
 })
 
-app.post('/api/generate-plagiarism-report', async (req, res) => {
+app.get('/api/generate-plagiarism-report', async (req, res) => {
   try {
-    const scan = req.body.scan
-    if (!scan) return res.status(400).json({ error: 'scan data required' })
+    const scanId = req.query.scanId
+    if (!scanId) return res.status(400).json({ error: 'scanId is required' })
+
+    const { data: scan, error } = await supabase
+      .from('scans')
+      .select('*')
+      .eq('id', scanId)
+      .single()
+
+    if (error || !scan) return res.status(404).json({ error: 'Scan not found' })
 
     const doc = new jsPDF()
 
