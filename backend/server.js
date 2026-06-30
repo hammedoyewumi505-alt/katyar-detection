@@ -200,8 +200,11 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
     // 2) Insert scan row into Supabase first so Copyleaks webhook can match.
     //    plagiarism_percentage stays NULL and status is 'processing'.
     const scanInsert = {
-      user_id: userId,
-      document_name: originalName,
+  user_id: userId,
+  document_name: originalName,
+  document_text: text,
+  word_count: text ? text.trim().split(/\s+/).length : 0,
+  character_count: text ? text.length : 0,
       ai_percentage: ai.ai_percentage,
       ai_generated_only: ai.ai_generated_only,
       ai_paraphrased: ai.ai_paraphrased,
@@ -409,38 +412,56 @@ app.post('/api/copyleaks-webhook/:status', async (req, res) => {
     console.log('Copyleaks webhook received:', status)
 
     if (String(status).toLowerCase() === 'completed' && resultData?.results) {
-      // Copyleaks uses scannedDocument.scanId which we set to the Supabase scan row id.
       const scanId = resultData?.scannedDocument?.scanId
-
       if (!scanId) {
         res.status(200).send('OK')
         return
       }
 
-      const overallSimilarity = Math.round(
-        (resultData.results.score?.aggregatedScore || 0) * 100
-      )
-
+      const overallSimilarity = Math.round((resultData.results.score?.aggregatedScore || 0) * 100)
       const totalWords = resultData.totalWords || 0
 
-      const sources = (resultData.results.internet || [])
-        .slice(0, 13)
-        .map((item, idx) => {
-          const matchedWords = item.matchedWords || 0
-          const percentage =
-            totalWords > 0 ? Math.round((matchedWords / totalWords) * 100) : 0
+      const internetResults = resultData.results.internet || []
+      const sources = internetResults.slice(0, 13).map((item, idx) => {
+        const matchedWords = item.matchedWords || 0
+        const percentage = totalWords > 0 ? Math.round((matchedWords / totalWords) * 100) : 0
+        return {
+          number: idx + 1,
+          name: item.title || item.url || 'Unknown source',
+          type: 'Internet',
+          percentage
+        }
+      })
 
-          return {
-            number: idx + 1,
-            name: item.title || item.url || 'Unknown source',
-            type: 'Internet',
-            percentage
-          }
-        })
+      // Source-type percentage split
+      const internetWords = internetResults.reduce((sum, i) => sum + (i.matchedWords || 0), 0)
+      const internet_pct = totalWords > 0 ? Math.round((internetWords / totalWords) * 100) : 0
+      // Copyleaks free/basic plans usually only return "internet" results; publications/student
+      // papers require those database add-ons enabled on your Copyleaks account.
+      const publications_pct = 0
+      const student_papers_pct = 0
+
+      // Match groups: Copyleaks doesn't label these exact categories by default —
+      // this approximates "Not Cited or Quoted" as the full similarity score,
+      // since your current webhook payload doesn't request citation analysis.
+      const not_cited_pct = overallSimilarity
+      const not_cited_count = internetResults.length
 
       await supabase.from('scans').update({
         plagiarism_percentage: overallSimilarity,
         sources,
+        internet_pct,
+        publications_pct,
+        student_papers_pct,
+        not_cited_pct,
+        not_cited_count,
+        missing_quotations_pct: 0,
+        missing_quotations_count: 0,
+        missing_citation_pct: 0,
+        missing_citation_count: 0,
+        cited_quoted_pct: 0,
+        cited_quoted_count: 0,
+        integrity_flags_count: 0,
         status: 'completed'
       }).eq('id', scanId)
     }
@@ -451,7 +472,6 @@ app.post('/api/copyleaks-webhook/:status', async (req, res) => {
     res.status(500).send('Error')
   }
 })
-
 // Full Copyleaks webhook result handling requires a publicly accessible HTTPS URL (Render provides it).
 // Set BACKEND_URL to the Render backend URL so webhooks are delivered correctly.
 
