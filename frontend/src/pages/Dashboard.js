@@ -137,19 +137,22 @@ export default function Dashboard() {
       return
     }
 
-    setAnalyzing(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', uploadFile)
-      if (userPlanRow?.plans?.id) formData.append('plan_id', userPlanRow.plans.id)
+   setAnalyzing(true)
+try {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData?.session?.access_token || ''
 
-      const res = await fetch(`${backendUrl}/api/scan`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${user?.access_token || ''}`
-        },
-        body: formData
-      })
+  const formData = new FormData()
+  formData.append('file', uploadFile)
+  if (userPlanRow?.plans?.id) formData.append('plan_id', userPlanRow.plans.id)
+
+  const res = await fetch(`${backendUrl}/api/scan`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: formData
+  })
 
       const data = await res.json().catch(() => null)
 
