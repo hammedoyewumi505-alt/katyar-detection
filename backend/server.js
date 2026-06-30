@@ -53,25 +53,29 @@ function cleanJSON(text) {
   return cleaned.trim();
 }
 
-function extractTextFromFile(filePath, originalName) {
+async function extractTextFromFile(filePath, originalName) {
   const ext = path.extname(originalName).toLowerCase()
 
   if (ext === '.txt') {
-    return fs.promises.readFile(filePath, 'utf8')
+    return await fs.promises.readFile(filePath, 'utf8')
   }
+
+  const pdfParse = require('pdf-parse')
 
   if (ext === '.pdf') {
-    // Minimal implementation. For production, use a PDF parser (pdf-parse).
-    // Returning empty string will reduce accuracy.
-    return Promise.resolve('')
+    const buffer = await fs.promises.readFile(filePath)
+    const data = await pdfParse(buffer)
+    return data.text
   }
+
+  const mammoth = require('mammoth')
 
   if (ext === '.docx') {
-    // Minimal implementation. For production, use mammoth.
-    return Promise.resolve('')
+    const result = await mammoth.extractRawText({ path: filePath })
+    return result.value
   }
 
-  return Promise.resolve('')
+  return ''
 }
 
 async function groqAIAnalysis(text) {
@@ -91,7 +95,7 @@ async function groqAIAnalysis(text) {
     ],
     model: 'llama-3.3-70b-versatile',
     temperature: 0
-  })
+  }) 
 
   const rawText = resp.choices?.[0]?.message?.content || '{}'
   const cleanedText = cleanJSON(rawText)
@@ -99,15 +103,61 @@ async function groqAIAnalysis(text) {
   return result
 }
 
-async function copyleaksPlagiarismCheck(text) {
-  // Minimal placeholder implementation.
-  // Production: call Copyleaks API and parse results.
-  return {
-    plagiarism_percentage: 0,
-    match_groups: [],
-    sources: [],
-    integrity_flags: [],
-    matched_sentences: []
+const axios = require('axios')
+
+async function getCopyleaksToken() {
+  const response = await axios.post(
+    'https://id.copyleaks.com/v3/account/login/api',
+    {
+      email: process.env.COPYLEAKS_EMAIL,
+      key: process.env.COPYLEAKS_API_KEY
+    }
+  )
+  return response.data.access_token
+}
+
+async function copyleaksPlagiarismCheck(text, scanRowId) {
+  try {
+    if (!scanRowId) {
+      throw new Error('scanRowId is required for Copyleaks submission')
+    }
+
+    // Keep scan row from getting stuck in 'processing' for very short/empty text.
+    if (!text || text.trim().length < 50) {
+      await supabase
+        .from('scans')
+        .update({
+          plagiarism_percentage: null,
+          sources: [],
+          status: 'completed'
+        })
+        .eq('id', scanRowId)
+
+      return { status: 'skipped' }
+    }
+
+
+    const token = await getCopyleaksToken()
+    const base64Text = Buffer.from(text).toString('base64')
+
+    await axios.put(
+      `https://api.copyleaks.com/v3/businesses/submit/file/${scanRowId}`,
+      {
+        base64: base64Text,
+        filename: 'document.txt',
+        properties: {
+          webhooks: {
+            status: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/copyleaks-webhook/{STATUS}`
+          }
+        }
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+
+    return { status: 'processing' }
+  } catch (err) {
+    console.warn('Copyleaks error:', err.message)
+    return { status: 'error', error: err.message }
   }
 }
 
@@ -144,10 +194,13 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
 
     const text = await extractTextFromFile(filePath, originalName)
 
+    // 1) AI analysis first (sync/fast)
     const ai = await groqAIAnalysis(text)
-    const plagiarism = await copyleaksPlagiarismCheck(text)
 
-    const result = {
+    // 2) Insert scan row into Supabase first so Copyleaks webhook can match.
+    //    plagiarism_percentage stays NULL and status is 'processing'.
+    const scanInsert = {
+      user_id: userId,
       document_name: originalName,
       ai_percentage: ai.ai_percentage,
       ai_generated_only: ai.ai_generated_only,
@@ -155,29 +208,26 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
       verdict: ai.verdict,
       paraphrased_sentences: ai.paraphrased_sentences,
       ai_sentences: ai.ai_sentences,
-      plagiarism_percentage: plagiarism.plagiarism_percentage,
-      match_groups: plagiarism.match_groups,
-      sources: plagiarism.sources,
-      integrity_flags: plagiarism.integrity_flags,
-      matched_sentences: plagiarism.matched_sentences
-    }
-
-    // Save to Supabase scans table
-    const scanInsert = {
-      user_id: userId,
-      document_name: result.document_name,
-      ai_percentage: result.ai_percentage,
-      ai_generated_only: result.ai_generated_only,
-      ai_paraphrased: result.ai_paraphrased,
-      verdict: result.verdict,
-      paraphrased_sentences: result.paraphrased_sentences,
-      ai_sentences: result.ai_sentences,
-      plagiarism_percentage: result.plagiarism_percentage,
-      match_groups: result.match_groups,
-      sources: result.sources,
-      integrity_flags: result.integrity_flags,
-      matched_sentences: result.matched_sentences,
-      raw_result: result
+      plagiarism_percentage: null,
+      match_groups: [],
+      sources: [],
+      integrity_flags: [],
+      matched_sentences: [],
+      status: 'processing',
+      raw_result: {
+        document_name: originalName,
+        ai_percentage: ai.ai_percentage,
+        ai_generated_only: ai.ai_generated_only,
+        ai_paraphrased: ai.ai_paraphrased,
+        verdict: ai.verdict,
+        paraphrased_sentences: ai.paraphrased_sentences,
+        ai_sentences: ai.ai_sentences,
+        plagiarism_percentage: null,
+        match_groups: [],
+        sources: [],
+        integrity_flags: [],
+        matched_sentences: []
+      }
     }
 
     const { data: scanRow, error: scanError } = await supabase
@@ -188,17 +238,47 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
 
     if (scanError) throw scanError
 
+    // 3) Call Copyleaks AFTER insert, using the real scanRow.id as Copyleaks scanId.
+    await copyleaksPlagiarismCheck(text, scanRow.id)
+
+    // 4) Return immediately to the frontend (plagiarism updates later via webhook).
+    const result = {
+      document_name: originalName,
+      ai_percentage: ai.ai_percentage,
+      ai_generated_only: ai.ai_generated_only,
+      ai_paraphrased: ai.ai_paraphrased,
+      verdict: ai.verdict,
+      paraphrased_sentences: ai.paraphrased_sentences,
+      ai_sentences: ai.ai_sentences,
+      plagiarism_percentage: null,
+      match_groups: [],
+      sources: [],
+      integrity_flags: [],
+      matched_sentences: []
+    }
+
+
     // Deduct 1 slot
     if (userId) {
-      const { error: updError } = await supabase
+      const { data: planData, error: planFetchError } = await supabase
         .from('user_plans')
-        .update({ slots_remaining: supabase.raw('slots_remaining - 1') })
+        .select('id, slots_remaining')
         .eq('user_id', userId)
         .eq('status', 'active')
+        .single()
 
-      if (updError) {
-        // Non-fatal; scan still returns.
-        console.warn('Slot deduction failed:', updError.message)
+      if (!planFetchError && planData) {
+        const newSlots = Math.max(0, planData.slots_remaining - 1)
+        const { error: updError } = await supabase
+          .from('user_plans')
+          .update({ slots_remaining: newSlots })
+          .eq('id', planData.id)
+
+        if (updError) {
+          console.warn('Slot deduction failed:', updError.message)
+        }
+      } else {
+        console.warn('Could not find active plan for user:', userId)
       }
     }
 
@@ -305,7 +385,62 @@ app.post('/api/generate-plagiarism-report', async (req, res) => {
   }
 })
 
+app.post('/api/copyleaks-webhook/:status', async (req, res) => {
+  try {
+    const { status } = req.params
+    const resultData = req.body
+
+    console.log('Copyleaks webhook received:', status)
+
+    if (String(status).toLowerCase() === 'completed' && resultData?.results) {
+      // Copyleaks uses scannedDocument.scanId which we set to the Supabase scan row id.
+      const scanId = resultData?.scannedDocument?.scanId
+
+      if (!scanId) {
+        res.status(200).send('OK')
+        return
+      }
+
+      const overallSimilarity = Math.round(
+        (resultData.results.score?.aggregatedScore || 0) * 100
+      )
+
+      const totalWords = resultData.totalWords || 0
+
+      const sources = (resultData.results.internet || [])
+        .slice(0, 13)
+        .map((item, idx) => {
+          const matchedWords = item.matchedWords || 0
+          const percentage =
+            totalWords > 0 ? Math.round((matchedWords / totalWords) * 100) : 0
+
+          return {
+            number: idx + 1,
+            name: item.title || item.url || 'Unknown source',
+            type: 'Internet',
+            percentage
+          }
+        })
+
+      await supabase.from('scans').update({
+        plagiarism_percentage: overallSimilarity,
+        sources,
+        status: 'completed'
+      }).eq('id', scanId)
+    }
+
+    res.status(200).send('OK')
+  } catch (err) {
+    console.error('Webhook processing error:', err.message)
+    res.status(500).send('Error')
+  }
+})
+
+// Full Copyleaks webhook result handling requires a publicly accessible HTTPS URL (Render provides it).
+// Set BACKEND_URL to the Render backend URL so webhooks are delivered correctly.
+
 app.listen(PORT, () => {
   console.log(`Katyar Detection backend listening on port ${PORT}`)
 })
+
 

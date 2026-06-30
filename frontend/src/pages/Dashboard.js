@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Dashboard() {
@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [userPlanRow, setUserPlanRow] = useState(null) // user_plans row with plans join
   const [scans, setScans] = useState([])
 
+
   const [uploadFile, setUploadFile] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState('')
@@ -15,69 +16,80 @@ export default function Dashboard() {
 
   const backendUrl = process.env.REACT_APP_BACKEND_URL
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      setAnalyzeError('')
-      setAnalyzeSuccess('')
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setAnalyzeError('')
+    setAnalyzeSuccess('')
 
-      const { data: authData } = await supabase.auth.getUser()
-      const u = authData?.user || null
-      setUser(u)
+    const { data: authData } = await supabase.auth.getUser()
+    const u = authData?.user || null
+    setUser(u)
 
-      const DEMO_EMAIL = 'demo@katyardetection.com'
-      if (u?.email === DEMO_EMAIL) {
-        const today = new Date().toISOString().split('T')[0]
-
-        const { data: planData } = await supabase
-          .from('user_plans')
-          .select('*')
-          .eq('user_id', u.id)
-          .eq('status', 'active')
-          .single()
-
-        if (planData && planData.last_refill_date !== today) {
-          await supabase
-            .from('user_plans')
-            .update({
-              slots_remaining: 100,
-              last_refill_date: today
-            })
-            .eq('id', planData.id)
-        }
-      }
-
-      if (!u) {
-
-        setUserPlanRow(null)
-        setScans([])
-        setLoading(false)
-        return
-      }
+    const DEMO_EMAIL = 'demo@katyardetection.com'
+    if (u?.email === DEMO_EMAIL) {
+      const today = new Date().toISOString().split('T')[0]
 
       const { data: planData } = await supabase
         .from('user_plans')
-        .select('*, plans(*)')
+        .select('*')
         .eq('user_id', u.id)
         .eq('status', 'active')
         .single()
 
-      setUserPlanRow(planData || null)
-
-      const { data: scansData, error } = await supabase
-        .from('scans')
-        .select('*')
-        .eq('user_id', u.id)
-        .order('created_at', { ascending: false })
-
-      if (!error) setScans(scansData || [])
-      else setScans([])
-
-      setLoading(false)
+      if (planData && planData.last_refill_date !== today) {
+        await supabase
+          .from('user_plans')
+          .update({
+            slots_remaining: 100,
+            last_refill_date: today
+          })
+          .eq('id', planData.id)
+      }
     }
 
-    fetchData()
+    if (!u) {
+      setUserPlanRow(null)
+      setScans([])
+      setLoading(false)
+      return
+    }
+
+    const { data: planData } = await supabase
+      .from('user_plans')
+      .select('*, plans(*)')
+      .eq('user_id', u.id)
+      .eq('status', 'active')
+      .single()
+
+    setUserPlanRow(planData || null)
+
+    const { data: scansData, error } = await supabase
+      .from('scans')
+      .select('*')
+      .eq('user_id', u.id)
+      .order('created_at', { ascending: false })
+
+    if (!error) setScans(scansData || [])
+    else setScans([])
+
+    setLoading(false)
   }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  useEffect(() => {
+    const hasProcessing = scans.some((s) => s.status === 'processing')
+    if (!hasProcessing) return
+
+    const interval = setInterval(() => {
+      fetchData()
+    }, 15000)
+
+    return () => clearInterval(interval)
+  }, [scans, fetchData])
+
 
   const planStatus = useMemo(() => {
     if (!user) return null
@@ -309,7 +321,44 @@ export default function Dashboard() {
                     <td className="p-3 font-medium">{scan.document_name || 'Untitled Document'}</td>
                     <td className="p-3 text-gray-600">{scan.created_at ? new Date(scan.created_at).toLocaleString() : '-'}</td>
                     <td className="p-3">{scan.ai_percentage ?? '-'}</td>
-                    <td className="p-3">{scan.plagiarism_percentage ?? '-'}</td>
+                    <td className="p-3">
+                      {scan.status === 'processing' && scan.plagiarism_percentage === null ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#fef3c7',
+                            color: '#92400e',
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '700'
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              background: '#f59e0b',
+                              animation: 'pulse 1.5s infinite'
+                            }}
+                          ></span>
+                          Processing...
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            fontWeight: '700',
+                            color: scan.plagiarism_percentage > 30 ? '#ef4444' : '#22c55e'
+                          }}
+                        >
+                          {scan.plagiarism_percentage}%
+                        </span>
+                      )}
+                    </td>
+
                     <td className="p-3">
                       <div className="flex flex-col sm:flex-row gap-2">
                         <button
@@ -323,13 +372,18 @@ export default function Dashboard() {
                         </button>
                         <button
                           className="px-3 py-2 rounded-lg font-semibold text-white"
-                          style={{ background: '#1E40AF' }}
+                          style={{
+                            background: scan.status === 'processing' || scan.plagiarism_percentage === null ? '#94a3b8' : '#1E40AF'
+                          }}
+                          disabled={scan.status === 'processing' || scan.plagiarism_percentage === null}
                           onClick={async () => {
+                            if (scan.status === 'processing' || scan.plagiarism_percentage === null) return
                             window.location.href = `${backendUrl}/api/generate-plagiarism-report?scanId=${scan.id}`
                           }}
                         >
-                          Download Plagiarism Report
+                          {scan.status === 'processing' || scan.plagiarism_percentage === null ? 'Pending...' : 'Download Plagiarism Report'}
                         </button>
+
                       </div>
                     </td>
                   </tr>
